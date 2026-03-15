@@ -11,15 +11,15 @@ import (
 
 const DETACHED_PROCESS = 0x00000008
 
-func launchDaemonOS(name string, arg ...string) error {
+func launchDaemonOS(name string, arg ...string) (int, error) {
 	cmd := exec.Command(name, arg...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS,
 	}
 
 	if err := cmd.Start(); err != nil {
-		return err
+		return 0, err
 	}
 	log.Debugf("Daemon started with PID %d", cmd.Process.Pid)
-	return nil
+	return cmd.Process.Pid, nil
 }
