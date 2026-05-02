@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
@@ -349,6 +350,166 @@ func TestMalformedGlob(t *testing.T) {
 
 	if !strings.Contains(out, "Malformed glob pattern") {
 		t.Fatalf("output did not indicate malformed glob pattern: %s", out)
+	}
+}
+
+func makeGroupEnvWithDaemon(t *testing.T) ([]string, context.CancelFunc, error) {
+	cfg := defaultConfig
+	cfg.boringConfig = "../testdata/config/config_groups.toml"
+	return makeEnvWithDaemon(cfg, t)
+}
+
+func TestListGrouped(t *testing.T) {
+	env, cancel, err := makeGroupEnvWithDaemon(t)
+	if err != nil {
+		t.Fatalf("%v", err.Error())
+	}
+	defer cancel()
+
+	c, out, err := cliCommand(env, "list")
+	if err != nil {
+		t.Fatalf("failed to run CLI command: %v", err)
+	}
+	if c != 0 {
+		t.Fatalf("exit code %d: %s", c, out)
+	}
+
+	stripped := stripANSI(out)
+
+	// Verify group headers are present and sorted
+	devIdx := strings.Index(stripped, "[dev]\n")
+	prodIdx := strings.Index(stripped, "[prod]\n")
+	if devIdx == -1 {
+		t.Fatalf("'dev' group header not found in output: %s", stripped)
+	}
+	if prodIdx == -1 {
+		t.Fatalf("'prod' group header not found in output: %s", stripped)
+	}
+
+	// Ungrouped tunnels come first under [default] (empty string sorts before "dev")
+	defaultIdx := strings.Index(stripped, "[default]\n")
+	if defaultIdx == -1 {
+		t.Fatalf("'[default]' group header not found in output: %s", stripped)
+	}
+	if defaultIdx > devIdx {
+		t.Errorf("ungrouped tunnels should appear before 'dev' group: %s", stripped)
+	}
+
+	// dev should come before prod (alphabetical)
+	if devIdx > prodIdx {
+		t.Errorf("'dev' group should come before 'prod': %s", stripped)
+	}
+}
+
+func TestListGroupFilter(t *testing.T) {
+	env, cancel, err := makeGroupEnvWithDaemon(t)
+	if err != nil {
+		t.Fatalf("%v", err.Error())
+	}
+	defer cancel()
+
+	c, out, err := cliCommand(env, "list", "-g", "prod")
+	if err != nil {
+		t.Fatalf("failed to run CLI command: %v", err)
+	}
+	if c != 0 {
+		t.Fatalf("exit code %d: %s", c, out)
+	}
+
+	stripped := stripANSI(out)
+	if !strings.Contains(stripped, "prod-web") {
+		t.Errorf("prod tunnel not in output: %s", stripped)
+	}
+	if strings.Contains(stripped, "dev-web") {
+		t.Errorf("dev tunnel should not be in filtered output: %s", stripped)
+	}
+	if strings.Contains(stripped, "misc") {
+		t.Errorf("ungrouped tunnel should not be in filtered output: %s", stripped)
+	}
+}
+
+func TestListGroupFilterNotFound(t *testing.T) {
+	env, cancel, err := makeGroupEnvWithDaemon(t)
+	if err != nil {
+		t.Fatalf("%v", err.Error())
+	}
+	defer cancel()
+
+	c, out, err := cliCommand(env, "list", "-g", "nonexistent")
+	if err != nil {
+		t.Fatalf("failed to run CLI command: %v", err)
+	}
+	if c != 1 {
+		t.Fatalf("exit code %d, expected 1", c)
+	}
+	if !strings.Contains(out, "No tunnels in group 'nonexistent'") {
+		t.Errorf("output did not indicate no tunnels in group: %s", out)
+	}
+}
+
+func TestOpenGroup(t *testing.T) {
+	env, cancel, err := makeGroupEnvWithDaemon(t)
+	if err != nil {
+		t.Fatalf("%v", err.Error())
+	}
+	defer cancel()
+
+	c, out, err := cliCommand(env, "open", "-g", "prod")
+	if err != nil {
+		t.Fatalf("failed to run CLI command: %v", err)
+	}
+	if c != 0 {
+		t.Fatalf("exit code %d: %s", c, out)
+	}
+
+	stripped := stripANSI(out)
+	if !strings.Contains(stripped, "Opened tunnel 'prod-web'") {
+		t.Errorf("prod-web tunnel not opened: %s", stripped)
+	}
+
+	// Verify dev tunnels were NOT opened
+	c, out, err = cliCommand(env, "list")
+	if err != nil {
+		t.Fatalf("failed to run CLI command: %v", err)
+	}
+	stripped = stripANSI(out)
+	lines := strings.Split(strings.TrimSpace(stripped), "\n")
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) >= 2 && fields[1] == "dev-web" && fields[0] != "closed" {
+			t.Errorf("dev-web should still be closed: %s", stripped)
+		}
+	}
+}
+
+func TestCloseGroup(t *testing.T) {
+	env, cancel, err := makeGroupEnvWithDaemon(t)
+	if err != nil {
+		t.Fatalf("%v", err.Error())
+	}
+	defer cancel()
+
+	// Open prod group
+	c, out, err := cliCommand(env, "open", "-g", "prod")
+	if err != nil {
+		t.Fatalf("failed to run CLI command: %v", err)
+	}
+	if c != 0 {
+		t.Fatalf("exit code %d: %s", c, out)
+	}
+
+	// Close prod group
+	c, out, err = cliCommand(env, "close", "-g", "prod")
+	if err != nil {
+		t.Fatalf("failed to run CLI command: %v", err)
+	}
+	if c != 0 {
+		t.Fatalf("exit code %d: %s", c, out)
+	}
+
+	stripped := stripANSI(out)
+	if !strings.Contains(stripped, "Closed tunnel 'prod-web'") {
+		t.Errorf("prod-web tunnel not closed: %s", stripped)
 	}
 }
 

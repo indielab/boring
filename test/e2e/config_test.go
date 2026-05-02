@@ -98,3 +98,24 @@ func TestInvalidGlob(t *testing.T) {
 func TestDoubleName(t *testing.T) {
 	testInvalidConfig(t, "../testdata/config/invalid/double_name.toml")
 }
+
+func TestInvalidGroup(t *testing.T) {
+	cfg := defaultConfig
+	cfg.boringConfig = "../testdata/config/invalid/invalid_group.toml"
+	env, cancel, err := makeEnvWithDaemon(cfg, t)
+	if err != nil {
+		t.Fatalf("%v", err.Error())
+	}
+	defer cancel()
+
+	c, out, err := cliCommand(env, "list")
+	if err != nil {
+		t.Fatalf("failed to run CLI command: %v", err)
+	}
+	if c != 1 {
+		t.Fatalf("exit code %d, expected 1", c)
+	}
+	if !strings.Contains(out, "group names cannot") {
+		t.Errorf("output did not indicate invalid group name: %s", out)
+	}
+}

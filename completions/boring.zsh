@@ -14,9 +14,9 @@ _boring() {
         local -a names
 
         if [[ "$1" == "closed" ]]; then
-            names=($(boring list 2>/dev/null | awk 'NR > 1 && $1 == "closed" { print $2 }'))
+            names=($(boring list 2>/dev/null | awk '$1 == "closed" { print $2 }'))
         else
-            names=($(boring list 2>/dev/null | awk 'NR > 1 && $1 != "closed" { print $2 }'))
+            names=($(boring list 2>/dev/null | awk '$1 != "closed" && $1 != "Status" && NF >= 2 { print $2 }'))
         fi
 
         # filter names based on already provided arguments
@@ -39,6 +39,14 @@ _boring() {
         fi
     }
 
+    _boring_get_groups() {
+        local -a groups
+        groups=($(boring list 2>/dev/null | sed -n 's/^\[\(.*\)\]$/\1/p' | grep -v '^default$'))
+        if (( ${#groups[@]} )); then
+            _values 'group' "${groups[@]}"
+        fi
+    }
+
     _arguments \
         '1:command:->commands' \
         '*:resource name:->names'
@@ -48,7 +56,9 @@ _boring() {
             _values 'command' "${commands[@]}"
             ;;
         names)
-            if [[ $line[1] == "open" || $line[1] == "o" ]]; then
+            if [[ "${words[CURRENT-1]}" == "-g" || "${words[CURRENT-1]}" == "--group" ]]; then
+                _boring_get_groups
+            elif [[ $line[1] == "open" || $line[1] == "o" ]]; then
                 _boring_get_names "closed" "${line[@]:1}"
             elif [[ $line[1] == "close" || $line[1] == "c" ]]; then
                 _boring_get_names "open" "${line[@]:1}"

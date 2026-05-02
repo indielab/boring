@@ -39,17 +39,17 @@ func main() {
 	case "open", "o":
 		if len(os.Args) < 3 {
 			log.Fatalf("'open' requires at least one 'pattern' argument," +
-				" or an '--all/-a' flag.")
+				" or an '--all/-a' or '-g/--group <group>' flag.")
 		}
 		controlTunnels(os.Args[2:], daemon.Open)
 	case "close", "c":
 		if len(os.Args) < 3 {
 			log.Fatalf("'close' requires at least one 'pattern' argument," +
-				" or an '--all/-a' flag.")
+				" or an '--all/-a' or '-g/--group <group>' flag.")
 		}
 		controlTunnels(os.Args[2:], daemon.Close)
 	case "list", "l", "ls":
-		listTunnels()
+		listTunnels(os.Args[2:])
 	case "edit", "e":
 		editConfig()
 	case "version", "v":
@@ -94,11 +94,12 @@ func printVersion() {
 func printUsage() {
 	log.Printf("The `boring` SSH tunnel manager\n\n")
 	log.Printf("Usage:\n")
-	log.Printf("  boring list, l                List all tunnels\n")
-	log.Printf(`  boring open, o (-a | <patterns>...)
-    <patterns>...               Open tunnels matching any glob pattern
-    -a, --all                   Open all tunnels` + "\n")
-	log.Printf("  boring close, c               Close tunnels (same options as 'open')\n")
-	log.Printf("  boring edit, e                Edit the configuration file\n")
-	log.Printf("  boring version, v             Show the version number\n")
+	log.Printf("  boring list, l [-g <group>]    List all tunnels\n")
+	log.Printf(`  boring open, o (-a | -g <group> | <patterns>...)
+    <patterns>...                Open tunnels matching any glob pattern
+    -a, --all                    Open all tunnels
+    -g, --group <group>          Open all tunnels in a group` + "\n")
+	log.Printf("  boring close, c                Close tunnels (same options as 'open')\n")
+	log.Printf("  boring edit, e                 Edit the configuration file\n")
+	log.Printf("  boring version, v              Show the version number\n")
 }

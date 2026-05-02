@@ -1,0 +1,28 @@
+keep_alive = 0
+
+[[tunnels]]
+name = "dev-web"
+group = "dev"
+host = "127.0.0.1"
+local = 49711
+remote = "localhost:49712"
+
+[[tunnels]]
+name = "dev-api"
+group = "dev"
+host = "127.0.0.1"
+local = 49713
+remote = "localhost:49714"
+
+[[tunnels]]
+name = "prod-web"
+group = "prod"
+host = "127.0.0.1"
+local = 49715
+remote = "localhost:49716"
+
+[[tunnels]]
+name = "misc"
+host = "127.0.0.1"
+local = 49717
+remote = "localhost:49718"

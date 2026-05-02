@@ -13,9 +13,11 @@ remote = "9000"
 host = "dev-server"
 mode = "remote"
 
-# example of an explicit host (doesn't use SSH config)
+# example of an explicit host (doesn't use SSH config);
+# tunnels can optionally be assigned to a group for batch operations
 [[tunnels]]
 name = "prod"
+group = "production"
 local = "5001"
 remote = "localhost:5001"
 host = "prod.example.com"

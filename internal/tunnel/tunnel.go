@@ -33,6 +33,7 @@ type Desc struct {
 	IdentityFile  string      `toml:"identity" json:"identity"`
 	Port          int         `toml:"port" json:"port"`
 	KeepAlive     *int        `toml:"keep_alive" json:"keep_alive"`
+	Group         string      `toml:"group" json:"group"`
 	Mode          Mode        `toml:"mode" json:"mode"`
 	Status        Status      `toml:"-" json:"status"`
 	LastConn      time.Time   `toml:"-" json:"last_conn"`

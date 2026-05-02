@@ -70,19 +70,9 @@ func Load() (*Config, error) {
 	}
 
 	// Create a map of tunnel names to tunnel pointers for easy lookup later
-	m := make(map[string]*tunnel.Desc)
-	for i := range cfg.Tunnels {
-		t := &cfg.Tunnels[i]
-		if _, exists := m[t.Name]; exists {
-			return nil, fmt.Errorf("found duplicated tunnel name '%v'", t.Name)
-		}
-		if t.Name == "" || strings.Contains(t.Name, " ") ||
-			specialPrefix(t.Name) || containsGlob(t.Name) {
-			return nil, fmt.Errorf("tunnel names cannot be empty, contain spaces,"+
-				" start with special characters, or contain glob characters \"*?[\"."+
-				" Found '%v'", t.Name)
-		}
-		m[t.Name] = t
+	m, err := buildTunnelsMap(cfg.Tunnels)
+	if err != nil {
+		return nil, err
 	}
 
 	// Replace the remote address of Socks tunnels and local address of reverse
@@ -98,6 +88,30 @@ func Load() (*Config, error) {
 
 	cfg.TunnelsMap = m
 	return &cfg, nil
+}
+
+func buildTunnelsMap(tunnels []tunnel.Desc) (map[string]*tunnel.Desc, error) {
+	m := make(map[string]*tunnel.Desc)
+	for i := range tunnels {
+		t := &tunnels[i]
+		if _, exists := m[t.Name]; exists {
+			return nil, fmt.Errorf("found duplicated tunnel name '%v'", t.Name)
+		}
+		if t.Name == "" || strings.Contains(t.Name, " ") ||
+			specialPrefix(t.Name) || containsGlob(t.Name) {
+			return nil, fmt.Errorf("tunnel names cannot be empty, contain spaces,"+
+				" start with special characters, or contain glob characters \"*?[\"."+
+				" Found '%v'", t.Name)
+		}
+		if t.Group != "" && (strings.Contains(t.Group, " ") ||
+			specialPrefix(t.Group) || containsGlob(t.Group)) {
+			return nil, fmt.Errorf("group names cannot contain spaces,"+
+				" start with special characters, or contain glob characters \"*?[\"."+
+				" Found '%v'", t.Group)
+		}
+		m[t.Name] = t
+	}
+	return m, nil
 }
 
 func specialPrefix(s string) bool {

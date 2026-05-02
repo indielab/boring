@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -59,12 +60,22 @@ func prepare() (*config.Config, error) {
 	return conf, nil
 }
 
+// flow is very linear and I don't mind it at the moment
+//
+//gocyclo:ignore
 func controlTunnels(args []string, kind daemon.CmdKind) {
+	var groupFilter string
+
 	if args[0] == "--all" || args[0] == "-a" {
 		if len(args) != 1 {
 			log.Fatalf("'--all' does not take any additional arguments.")
 		}
 		args = []string{"*"}
+	} else if args[0] == "-g" || args[0] == "--group" {
+		if len(args) != 2 {
+			log.Fatalf("'-g/--group' requires exactly one group name argument.")
+		}
+		groupFilter = args[1]
 	}
 
 	conf, err := prepare()
@@ -73,33 +84,49 @@ func controlTunnels(args []string, kind daemon.CmdKind) {
 	}
 
 	// Get available tunnels for requested command
-	tunnels := conf.TunnelsMap
+	ts := conf.TunnelsMap
 	if kind == daemon.Close {
-		tunnels, err = getRunningTunnels()
+		ts, err = getRunningTunnels()
 		if err != nil {
 			log.Fatalf("Could not get running tunnels: %v", err)
 		}
+		// Merge group info from config into running tunnels:
+		// user config is authoritative and can be modified while tunnels run.
+		for name, rt := range ts {
+			if ct, ok := conf.TunnelsMap[name]; ok {
+				rt.Group = ct.Group
+			}
+		}
 	}
-
-	// Filter tunnels based on patterns
-	keep, notMatched := filterTunnels(tunnels, args)
 
 	var m string
 	if kind == daemon.Close {
 		m = "running "
 	}
-	if len(keep) == 0 {
-		// No tunnels to operate on, print error message
-		msg := fmt.Sprintf("No %stunnels match pattern '%s'.", m, args[0])
-		if len(args) > 1 {
-			msg = fmt.Sprintf("No %stunnels match any provided pattern.", m)
-		}
-		log.Fatalf("%s", msg)
-	}
 
-	// If tunnels were matched, do print a warning for unmatched patterns
-	for _, pat := range notMatched {
-		log.Warningf("No %stunnels match pattern '%s'.", m, pat)
+	var keep map[string]bool
+
+	if groupFilter != "" {
+		keep = filterByGroup(ts, groupFilter)
+		if len(keep) == 0 {
+			log.Fatalf("No %stunnels in group '%s'.", m, groupFilter)
+		}
+	} else {
+		var notMatched []string
+		keep, notMatched = filterByPatterns(ts, args)
+
+		if len(keep) == 0 {
+			msg := fmt.Sprintf("No %stunnels match pattern '%s'.", m, args[0])
+			if len(args) > 1 {
+				msg = fmt.Sprintf("No %stunnels match any provided pattern.", m)
+			}
+			log.Fatalf("%s", msg)
+		}
+
+		// If tunnels were matched, do print a warning for unmatched patterns
+		for _, pat := range notMatched {
+			log.Warningf("No %stunnels match pattern '%s'.", m, pat)
+		}
 	}
 
 	// Issue concurrent commands for all tunnels
@@ -107,9 +134,9 @@ func controlTunnels(args []string, kind daemon.CmdKind) {
 	for n := range keep {
 		g.Go(func() error {
 			if kind == daemon.Open {
-				return openTunnel(tunnels[n])
+				return openTunnel(ts[n])
 			} else if kind == daemon.Close {
-				return closeTunnel(tunnels[n])
+				return closeTunnel(ts[n])
 			}
 			panic("unknown command kind: " + kind.String())
 		})
@@ -173,7 +200,17 @@ func getRunningTunnels() (map[string]*tunnel.Desc, error) {
 	return m, nil
 }
 
-func listTunnels() {
+func listTunnels(args []string) {
+	var groupFilter string
+	if len(args) > 0 && (args[0] == "-g" || args[0] == "--group") {
+		if len(args) != 2 {
+			log.Fatalf("'-g/--group' requires exactly one group name argument.")
+		}
+		groupFilter = args[1]
+	} else if len(args) > 0 {
+		log.Fatalf("Unknown arguments for 'list'. Use '-g <group>' to filter by group.")
+	}
+
 	conf, err := prepare()
 	if err != nil {
 		log.Fatalf("Startup: %s", err.Error())
@@ -189,30 +226,106 @@ func listTunnels() {
 		return
 	}
 
-	tbl := table.New("Status", "Name", "Local", "", "Remote", "Via")
-	visited := make(map[string]bool)
+	all := orderTunnelsForList(conf.Tunnels, ts)
 
-	for _, t := range conf.Tunnels {
+	// Filter by group if requested
+	if groupFilter != "" {
+		var filtered []*tunnel.Desc
+		for _, t := range all {
+			if t.Group == groupFilter {
+				filtered = append(filtered, t)
+			}
+		}
+		if len(filtered) == 0 {
+			log.Fatalf("No tunnels in group '%s'.", groupFilter)
+		}
+		all = filtered
+	}
+
+	printTunnelList(all)
+}
+
+// orderTunnelsForList combines configured and running tunnels into an ordered slice.
+// Config order is preserved; running-but-not-configured tunnels are appended sorted by name.
+func orderTunnelsForList(conf []tunnel.Desc, ts map[string]*tunnel.Desc) []*tunnel.Desc {
+	var all []*tunnel.Desc
+	visited := make(map[string]bool)
+	for i := range conf {
+		t := &conf[i]
 		if q, ok := ts[t.Name]; ok {
-			tbl.AddRow(status(q), q.Name, q.LocalAddress, q.Mode, q.RemoteAddress, q.Host)
+			// Tunnel is running
+			q.Group = t.Group
+			all = append(all, q)
 			visited[q.Name] = true
 			continue
 		}
-		// TODO: case where tunnel is in resp but with different name
-		tbl.AddRow(status(&t), t.Name, t.LocalAddress, t.Mode, t.RemoteAddress, t.Host)
+		all = append(all, t)
 	}
+	var extra []string
+	for name := range ts {
+		if !visited[name] {
+			extra = append(extra, name)
+		}
+	}
+	sort.Strings(extra)
+	for _, name := range extra {
+		all = append(all, ts[name])
+	}
+	return all
+}
 
-	// Add tunnels that are in resp but not in the config
-	for _, q := range ts {
-		if !visited[q.Name] {
-			tbl.AddRow(status(q), q.Name, q.LocalAddress, q.Mode, q.RemoteAddress, q.Host)
+func printTunnelList(all []*tunnel.Desc) {
+	// If any tunnel has a non-empty group, use grouped display
+	hasGroups := false
+	for _, t := range all {
+		if t.Group != "" {
+			hasGroups = true
+			break
 		}
 	}
 
-	log.Emitf("%v", tbl)
+	if !hasGroups {
+		log.Emitf("%v", tunnelTable(all))
+		return
+	}
+
+	// Grouped display
+	groups := make(map[string][]*tunnel.Desc)
+	for _, t := range all {
+		groups[t.Group] = append(groups[t.Group], t)
+	}
+
+	var groupKeys []string
+	for k := range groups {
+		groupKeys = append(groupKeys, k)
+	}
+	sort.Strings(groupKeys)
+
+	first := true
+	for _, gk := range groupKeys {
+		if !first {
+			log.Emitf("\n")
+		}
+		first = false
+
+		header := gk
+		if header == "" {
+			header = "default"
+		}
+		log.Emitf("%s[%s]%s\n", log.Bold+log.Blue, header, log.Reset)
+		log.Emitf("%v", tunnelTable(groups[gk]))
+	}
 }
 
-func filterTunnels(ts map[string]*tunnel.Desc, pats []string) (map[string]bool, []string) {
+func tunnelTable(tunnels []*tunnel.Desc) *table.Table {
+	tbl := table.New("Status", "Name", "Local", "", "Remote", "Via")
+	for _, t := range tunnels {
+		tbl.AddRow(status(t), t.Name, t.LocalAddress, t.Mode, t.RemoteAddress, t.Host)
+	}
+	return tbl
+}
+
+func filterByPatterns(ts map[string]*tunnel.Desc, pats []string) (map[string]bool, []string) {
 	keep := make(map[string]bool, len(ts))
 	var notMatched []string
 	for _, pat := range pats {
@@ -242,4 +355,14 @@ func filterGlob(
 		}
 	}
 	return
+}
+
+func filterByGroup(ts map[string]*tunnel.Desc, group string) map[string]bool {
+	keep := make(map[string]bool)
+	for name, t := range ts {
+		if t.Group == group {
+			keep[name] = true
+		}
+	}
+	return keep
 }

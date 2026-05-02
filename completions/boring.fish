@@ -5,9 +5,9 @@ function __boring_get_names
 
     # retrieve names based on status
     if test "$stat" = "closed"
-        set names (boring list 2>/dev/null | awk 'NR > 1 && $1 == "closed" { print $2 }')
+        set names (boring list 2>/dev/null | awk '$1 == "closed" { print $2 }')
     else
-        set names (boring list 2>/dev/null | awk 'NR > 1 && $1 != "closed" { print $2 }')
+        set names (boring list 2>/dev/null | awk '$1 != "closed" && $1 != "Status" && NF >= 2 { print $2 }')
     end
 
     # filter names based on already provided arguments
@@ -25,12 +25,23 @@ function __boring_get_names
     end
 end
 
+function __boring_get_groups
+    boring list 2>/dev/null | sed -n 's/^\[\(.*\)\]$/\1/p' | grep -v '^default$'
+end
+
 function __boring_complete
     set command (commandline -opc)[2]
     set arguments (commandline -opc)[3..-1]
 
     if test (count $command) -eq 0
         printf "%s\n" open close list edit version
+        return
+    end
+
+    # complete group names after -g/--group
+    set prev (commandline -opc)[-1]
+    if test "$prev" = "-g" -o "$prev" = "--group"
+        __boring_get_groups
         return
     end
 
