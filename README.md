@@ -34,13 +34,14 @@ Get it: `brew install boring`
 
 ```
 Usage:
-  boring list, l                List all tunnels
-  boring open, o (-a | <patterns>...)
-    <patterns>...               Open tunnels matching any glob pattern
-    -a, --all                   Open all tunnels
-  boring close, c               Close tunnels (same options as 'open')
-  boring edit, e                Edit the configuration file
-  boring version, v             Show the version number
+  boring list, l [-g <group>]    List all tunnels
+  boring open, o (-a | -g <group> | <patterns>...)
+    <patterns>...                Open tunnels matching any glob pattern
+    -a, --all                    Open all tunnels
+    -g, --group <group>          Open all tunnels in a group
+  boring close, c                Close tunnels (same options as 'open')
+  boring edit, e                 Edit the configuration file
+  boring version, v              Show the version number
 ```
 
 ## Configuration
@@ -79,6 +80,7 @@ Currently, supported options at tunnel level are:
 | `user`        | SSH user. If not set, tries to read it from SSH config, defaulting to `$USER`.                                                                                                     |
 | `identity`    | SSH identity file. If not set, tries to read it from SSH config and `ssh-agent`, defaulting to standard identity files.                                                            |
 | `port`        | SSH port. If not set, tries to read it from SSH config, defaulting to `22`.                                                                                                        |
+| `group`        | Group that the tunnel is assigned to. Groups are only shown in `list` view if at least one tunnel has a group assigned. Can be used for grouped `open`, `close`, and `list`.                         |
 
 Options that can be provided at global and tunnel level (tunnel level takes precedence):
 
