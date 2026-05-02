@@ -472,6 +472,9 @@ func TestOpenGroup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to run CLI command: %v", err)
 	}
+	if c != 0 {
+		t.Fatalf("exit code %d: %s", c, out)
+	}
 	stripped = stripANSI(out)
 	lines := strings.Split(strings.TrimSpace(stripped), "\n")
 	for _, line := range lines {
