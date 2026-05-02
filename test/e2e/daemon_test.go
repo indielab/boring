@@ -105,7 +105,7 @@ func TestDaemonLaunchBadSocket(t *testing.T) {
 
 	// Create non-bindable file
 	s := getEnv(env, "BORING_SOCK")
-	if err = os.WriteFile(s, []byte("test"), 111); err != nil {
+	if err = os.WriteFile(s, []byte("test"), 0o111); err != nil {
 		t.Fatalf("could not create socket file: %v", err)
 	}
 
