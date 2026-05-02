@@ -90,13 +90,6 @@ func controlTunnels(args []string, kind daemon.CmdKind) {
 		if err != nil {
 			log.Fatalf("Could not get running tunnels: %v", err)
 		}
-		// Merge group info from config into running tunnels:
-		// user config is authoritative and can be modified while tunnels run.
-		for name, rt := range ts {
-			if ct, ok := conf.TunnelsMap[name]; ok {
-				rt.Group = ct.Group
-			}
-		}
 	}
 
 	var m string
@@ -253,8 +246,6 @@ func orderTunnelsForList(conf []tunnel.Desc, ts map[string]*tunnel.Desc) []*tunn
 	for i := range conf {
 		t := &conf[i]
 		if q, ok := ts[t.Name]; ok {
-			// Tunnel is running
-			q.Group = t.Group
 			all = append(all, q)
 			visited[q.Name] = true
 			continue
