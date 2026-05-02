@@ -41,7 +41,7 @@ _boring() {
 
     _boring_get_groups() {
         local -a groups
-        groups=($(boring list 2>/dev/null | sed -n 's/^\[\(.*\)\]$/\1/p' | grep -v '^default$'))
+        groups=($(boring list 2>/dev/null | sed -n 's/^\[\(.*\)\]$/\1/p'))
         if (( ${#groups[@]} )); then
             _values 'group' "${groups[@]}"
         fi
@@ -58,6 +58,8 @@ _boring() {
         names)
             if [[ "${words[CURRENT-1]}" == "-g" || "${words[CURRENT-1]}" == "--group" ]]; then
                 _boring_get_groups
+            elif (( ${line[(Ie)-g]} || ${line[(Ie)--group]} )); then
+                return 1
             elif [[ $line[1] == "open" || $line[1] == "o" ]]; then
                 _boring_get_names "closed" "${line[@]:1}"
             elif [[ $line[1] == "close" || $line[1] == "c" ]]; then

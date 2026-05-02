@@ -26,7 +26,7 @@ function __boring_get_names
 end
 
 function __boring_get_groups
-    boring list 2>/dev/null | sed -n 's/^\[\(.*\)\]$/\1/p' | grep -v '^default$'
+    boring list 2>/dev/null | sed -n 's/^\[\(.*\)\]$/\1/p'
 end
 
 function __boring_complete
@@ -42,6 +42,9 @@ function __boring_complete
     set prev (commandline -opc)[-1]
     if test "$prev" = "-g" -o "$prev" = "--group"
         __boring_get_groups
+        return
+    end
+    if contains -- -g $arguments; or contains -- --group $arguments
         return
     end
 

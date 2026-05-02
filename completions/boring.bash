@@ -36,7 +36,7 @@ _boring() {
 
     _boring_get_groups() {
         local -a groups
-        groups=($(boring list 2>/dev/null | sed -n 's/^\[\(.*\)\]$/\1/p' | grep -v '^default$'))
+        groups=($(boring list 2>/dev/null | sed -n 's/^\[\(.*\)\]$/\1/p'))
         COMPREPLY=($(compgen -W "${groups[*]}" -- "$cur"))
     }
 
@@ -46,6 +46,8 @@ _boring() {
         cmd="${COMP_WORDS[1]}"
         if [[ "$prev" == "-g" || "$prev" == "--group" ]]; then
             _boring_get_groups
+        elif [[ " ${COMP_WORDS[*]} " == *" -g "* || " ${COMP_WORDS[*]} " == *" --group "* ]]; then
+            COMPREPLY=()
         elif [[ "$cmd" == "open" || "$cmd" == "o" ]]; then
             _boring_get_names "closed"
         elif [[ "$cmd" == "close" || "$cmd" == "c" ]]; then

@@ -100,7 +100,11 @@ func controlTunnels(args []string, kind daemon.CmdKind) {
 	var keep map[string]bool
 
 	if groupFilter != "" {
-		keep = filterByGroup(ts, groupFilter)
+		filterValue := groupFilter
+		if groupFilter == "default" {
+			filterValue = ""
+		}
+		keep = filterByGroup(ts, filterValue)
 		if len(keep) == 0 {
 			log.Fatalf("No %stunnels in group '%s'.", m, groupFilter)
 		}
@@ -223,9 +227,13 @@ func listTunnels(args []string) {
 
 	// Filter by group if requested
 	if groupFilter != "" {
+		filterValue := groupFilter
+		if groupFilter == "default" {
+			filterValue = ""
+		}
 		var filtered []*tunnel.Desc
 		for _, t := range all {
-			if t.Group == groupFilter {
+			if t.Group == filterValue {
 				filtered = append(filtered, t)
 			}
 		}
